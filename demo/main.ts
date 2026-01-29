@@ -1,4 +1,4 @@
-import { watermark, verify } from '../src/index';
+import { watermark, verify, type VisibleWatermarkPosition } from '../src/index';
 
 const imageInput = document.getElementById('imageInput') as HTMLInputElement;
 const payloadInput = document.getElementById('payloadInput') as HTMLInputElement;
@@ -6,6 +6,14 @@ const watermarkBtn = document.getElementById('watermarkBtn') as HTMLButtonElemen
 const downloadBtn = document.getElementById('downloadBtn') as HTMLButtonElement;
 const watermarkPreview = document.getElementById('watermarkPreview') as HTMLDivElement;
 const watermarkStatus = document.getElementById('watermarkStatus') as HTMLDivElement;
+
+// Visible watermark controls
+const visibleEnabled = document.getElementById('visibleEnabled') as HTMLInputElement;
+const visibleOptions = document.getElementById('visibleOptions') as HTMLDivElement;
+const visiblePosition = document.getElementById('visiblePosition') as HTMLSelectElement;
+const visibleOpacity = document.getElementById('visibleOpacity') as HTMLInputElement;
+const opacityValue = document.getElementById('opacityValue') as HTMLSpanElement;
+const visibleTwoLines = document.getElementById('visibleTwoLines') as HTMLInputElement;
 
 const verifyImageInput = document.getElementById('verifyImageInput') as HTMLInputElement;
 const verifyPayloadInput = document.getElementById('verifyPayloadInput') as HTMLInputElement;
@@ -26,6 +34,16 @@ function updatePreview(file: File, container: HTMLDivElement) {
   };
   reader.readAsDataURL(file);
 }
+
+// Toggle visible options panel
+visibleEnabled.addEventListener('change', () => {
+  visibleOptions.classList.toggle('hidden', !visibleEnabled.checked);
+});
+
+// Update opacity display
+visibleOpacity.addEventListener('input', () => {
+  opacityValue.textContent = `${visibleOpacity.value}%`;
+});
 
 imageInput.addEventListener('change', (e) => {
   const file = (e.target as HTMLInputElement).files?.[0];
@@ -50,7 +68,16 @@ watermarkBtn.addEventListener('click', async () => {
   watermarkStatus.textContent = 'Processing...';
 
   try {
-    const result = await watermark(file, payload);
+    const result = await watermark(file, payload, {
+      visible: visibleEnabled.checked
+        ? {
+            enabled: true,
+            position: visiblePosition.value as VisibleWatermarkPosition,
+            opacity: parseInt(visibleOpacity.value, 10) / 100,
+            lineLimit: visibleTwoLines.checked ? 2 : 1,
+          }
+        : undefined,
+    });
     watermarkedBlob = result.blob;
 
     const url = URL.createObjectURL(result.blob);
