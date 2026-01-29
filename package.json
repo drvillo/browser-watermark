@@ -1,0 +1,58 @@
+{
+  "name": "@drvillo/browser-watermark",
+  "version": "0.1.0",
+  "description": "Browser-only invisible watermarking library using DCT",
+  "repository": {
+    "type": "git",
+    "url": "http://github.com/drvillo/browser-watermark.git"
+  },
+  "homepage": "https://github.com/drvillo/browser-watermark#readme",
+  "bugs": "https://github.com/drvillo/browser-watermark/issues",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    },
+    "./debug": {
+      "import": "./dist/debug.js",
+      "types": "./dist/debug.d.ts"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "demo": "vite",
+    "demo:build": "vite build",
+    "test": "pnpm run test:unit && pnpm run test:browser",
+    "test:unit": "vitest run",
+    "test:browser": "vitest run --config vitest.browser.config.ts",
+    "test:ui": "vitest --ui",
+    "typecheck": "tsc --noEmit"
+  },
+  "keywords": [
+    "watermark",
+    "dct",
+    "steganography",
+    "browser"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@vitest/browser-playwright": "^4.0.18",
+    "canvas": "^3.2.1",
+    "happy-dom": "^20.4.0",
+    "jsdom": "^27.4.0",
+    "playwright": "^1.58.0",
+    "tsup": "^8.0.0",
+    "typescript": "^5.0.0",
+    "vite": "^6.4.1",
+    "vitest": "^4.0.18"
+  }
+}
