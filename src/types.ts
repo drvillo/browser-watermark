@@ -1,6 +1,87 @@
 import type { ImageInput } from './io/decode';
 
 /**
+ * Position for visible watermark placement.
+ */
+export type VisibleWatermarkPosition =
+  | 'bottom-right'
+  | 'bottom-left'
+  | 'top-right'
+  | 'top-left'
+  | 'bottom-center';
+
+/**
+ * Options for the visible watermark overlay.
+ */
+export type VisibleWatermarkOptions = {
+  /**
+   * Enable visible watermark rendering.
+   * @default false
+   */
+  enabled?: boolean;
+
+  /**
+   * Position of the visible watermark.
+   * @default 'bottom-right'
+   */
+  position?: VisibleWatermarkPosition;
+
+  /**
+   * Opacity of the visible watermark (0-1).
+   * @default 0.15
+   */
+  opacity?: number;
+
+  /**
+   * Maximum width of the text box as a ratio of image width.
+   * @default 0.35
+   */
+  maxWidthRatio?: number;
+
+  /**
+   * Maximum height of the text box as a ratio of image height.
+   * @default 0.08
+   */
+  maxHeightRatio?: number;
+
+  /**
+   * Margin from edges as a ratio of image dimensions.
+   * @default 0.03
+   */
+  marginRatio?: number;
+
+  /**
+   * Minimum font size in pixels.
+   * @default 10
+   */
+  minFontSize?: number;
+
+  /**
+   * Maximum font size in pixels.
+   * @default 36
+   */
+  maxFontSize?: number;
+
+  /**
+   * Font family for the visible text.
+   * @default 'sans-serif'
+   */
+  fontFamily?: string;
+
+  /**
+   * Font weight for the visible text.
+   * @default '600'
+   */
+  fontWeight?: string;
+
+  /**
+   * Maximum number of lines (1 or 2).
+   * @default 1
+   */
+  lineLimit?: 1 | 2;
+};
+
+/**
  * Options for the watermark() function.
  */
 export type WatermarkOptions = {
@@ -10,6 +91,13 @@ export type WatermarkOptions = {
    * @default 0.92
    */
   jpegQuality?: number;
+
+  /**
+   * Optional visible watermark configuration.
+   * The visible watermark renders the payload as text overlay.
+   * Verification still relies only on the invisible watermark.
+   */
+  visible?: VisibleWatermarkOptions;
 };
 
 /**

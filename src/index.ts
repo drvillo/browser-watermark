@@ -3,6 +3,7 @@ import { encodeImage, detectMimeType } from './io/encode';
 import { embedWatermark } from './core/embed';
 import { extractWatermark } from './core/extract';
 import { derivePayloadDigest, digestToBits } from './utils/hash';
+import { renderVisibleWatermark } from './visible/render';
 import {
   MATCH_THRESHOLD,
   PAYLOAD_BITS,
@@ -15,10 +16,20 @@ import type {
   VerifyResult,
   WatermarkOptions,
   VerifyOptions,
+  VisibleWatermarkOptions,
+  VisibleWatermarkPosition,
 } from './types';
 
 // Re-export types for library consumers
-export type { ImageInput, WatermarkResult, VerifyResult, WatermarkOptions, VerifyOptions };
+export type {
+  ImageInput,
+  WatermarkResult,
+  VerifyResult,
+  WatermarkOptions,
+  VerifyOptions,
+  VisibleWatermarkOptions,
+  VisibleWatermarkPosition,
+};
 
 // Export default constants so users can reference them
 export const defaults = {
@@ -40,6 +51,7 @@ function arrayBufferToHex(buffer: Uint8Array): string {
 
 /**
  * Embed an invisible watermark into an image.
+ * Optionally applies a visible text overlay if options.visible.enabled is true.
  *
  * @param image - The source image (File, Blob, HTMLImageElement, etc.)
  * @param payload - The payload string to embed (will be hashed)
@@ -60,7 +72,15 @@ export async function watermark(
   const digest = await derivePayloadDigest(payload);
   const payloadBits = digestToBits(digest, PAYLOAD_BITS);
 
-  const watermarkedData = embedWatermark(imageData, payloadBits);
+  // Apply invisible watermark
+  let watermarkedData = embedWatermark(imageData, payloadBits);
+
+  // Apply visible watermark if enabled
+  if (options?.visible?.enabled) {
+    const visibleResult = renderVisibleWatermark(watermarkedData, payload, options.visible);
+    watermarkedData = visibleResult.imageData;
+  }
+
   const { blob, mimeType } = await encodeImage(
     watermarkedData,
     originalMimeType,
