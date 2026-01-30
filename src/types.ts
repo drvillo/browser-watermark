@@ -1,4 +1,5 @@
 import type { ImageInput } from './io/decode';
+import type { PageSelection } from './io/pdf';
 
 /**
  * Position for visible watermark placement.
@@ -82,6 +83,43 @@ export type VisibleWatermarkOptions = {
 };
 
 /**
+ * PDF-specific options for watermarking and verification.
+ */
+export type PdfOptions = {
+  /**
+   * Page selection for PDF processing.
+   * - 'all': Process all pages (default)
+   * - 'first': Process only the first page
+   * - number[]: Process specific 0-based page indices
+   * - { from: number; to: number }: Process a range of pages (inclusive)
+   * @default 'all'
+   */
+  pageSelection?: PageSelection;
+
+  /**
+   * Render scale for PDF pages (multiplier of base 72 DPI).
+   * Higher values produce better quality but use more memory.
+   * @default 2.0
+   */
+  renderScale?: number;
+
+  /**
+   * Maximum pixel budget per page to prevent excessive memory usage.
+   * Pages exceeding this limit will be scaled down automatically.
+   * @default 16000000 (16M pixels)
+   */
+  maxPixels?: number;
+
+  /**
+   * Output format for watermark() when input is PDF.
+   * - 'pdf': Return a PDF Blob (default for PDF inputs)
+   * - 'images': Return an array of page results
+   * @default 'pdf'
+   */
+  output?: 'pdf' | 'images';
+};
+
+/**
  * Options for the watermark() function.
  */
 export type WatermarkOptions = {
@@ -98,6 +136,12 @@ export type WatermarkOptions = {
    * Verification still relies only on the invisible watermark.
    */
   visible?: VisibleWatermarkOptions;
+
+  /**
+   * Optional PDF-specific options.
+   * Only used when input is detected as a PDF.
+   */
+  pdf?: PdfOptions;
 };
 
 /**
@@ -110,6 +154,12 @@ export type VerifyOptions = {
    * @default 0.85
    */
   threshold?: number;
+
+  /**
+   * Optional PDF-specific options.
+   * Only used when input is detected as a PDF.
+   */
+  pdf?: PdfOptions;
 };
 
 export type WatermarkResult = {
@@ -121,6 +171,14 @@ export type WatermarkResult = {
     embedScore: number;
     payloadDigestHex: string;
   };
+  /**
+   * PDF-specific metadata (only present when input was a PDF).
+   */
+  pageCount?: number;
+  /**
+   * Per-page metadata (only present when input was a PDF).
+   */
+  pages?: Array<{ index: number; width: number; height: number }>;
 };
 
 export type VerifyResult = {
@@ -131,6 +189,10 @@ export type VerifyResult = {
     likelyResized?: boolean;
     likelyRecompressed?: boolean;
   };
+  /**
+   * Per-page verification results (only present when input was a PDF).
+   */
+  pageMatches?: Array<{ index: number; confidence: number; isMatch: boolean }>;
 };
 
 export type ExtractResult = {

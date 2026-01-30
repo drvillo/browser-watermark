@@ -43,6 +43,10 @@
   ],
   "author": "",
   "license": "MIT",
+  "dependencies": {
+    "pdf-lib": "^1.17.1",
+    "pdfjs-dist": "^4.0.379"
+  },
   "devDependencies": {
     "@types/node": "^20.0.0",
     "@vitest/browser-playwright": "^4.0.18",
