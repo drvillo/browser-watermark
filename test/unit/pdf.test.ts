@@ -2,7 +2,6 @@ import { describe, it, expect } from 'vitest';
 import {
   isPdfInput,
   resolvePageSelection,
-  calculateRenderScale,
 } from '../../src/io/pdf';
 
 describe('PDF Detection', () => {
@@ -103,32 +102,5 @@ describe('Page Selection', () => {
   it('should return empty array for empty selection', () => {
     const result = resolvePageSelection([], 5);
     expect(result).toEqual([]);
-  });
-});
-
-describe('Render Scale Calculation', () => {
-  it('should return requested scale when within max pixels', () => {
-    const result = calculateRenderScale(1000, 1000, 2.0, 16_000_000);
-    expect(result).toBe(2.0);
-  });
-
-  it('should scale down when exceeding max pixels', () => {
-    const result = calculateRenderScale(5000, 5000, 2.0, 16_000_000);
-    // 5000 * 2 * 5000 * 2 = 100M pixels, exceeds 16M
-    // Scale factor = sqrt(16M / 25M) = sqrt(0.64) = 0.8
-    // Actual scale = 2.0 * 0.8 = 1.6
-    expect(result).toBeLessThan(2.0);
-    expect(result).toBeGreaterThan(0);
-  });
-
-  it('should enforce minimum scale', () => {
-    const result = calculateRenderScale(10000, 10000, 10.0, 1000);
-    expect(result).toBeGreaterThanOrEqual(0.1);
-  });
-
-  it('should handle exact max pixels', () => {
-    // 2000 * 2 * 2000 * 2 = 16M pixels exactly
-    const result = calculateRenderScale(2000, 2000, 2.0, 16_000_000);
-    expect(result).toBe(2.0);
   });
 });

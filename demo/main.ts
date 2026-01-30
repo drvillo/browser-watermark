@@ -24,12 +24,31 @@ const verifyStatus = document.getElementById('verifyStatus') as HTMLDivElement;
 
 let watermarkedBlob: Blob | null = null;
 
+/** Detect PDF from file MIME type (same logic as library's isPdfInput for File). */
+function isPdfFile(file: File): boolean {
+  return file.type === 'application/pdf';
+}
+
+/** Extension from MIME type for download filename. */
+function extensionFromMime(mimeType: string): string {
+  if (mimeType === 'application/pdf') return 'pdf';
+  const suffix = mimeType.split('/')[1];
+  return suffix?.split('+')[0] ?? 'bin';
+}
+
 function updatePreview(file: File, container: HTMLDivElement) {
+  container.innerHTML = '';
+  if (isPdfFile(file)) {
+    const placeholder = document.createElement('div');
+    placeholder.className = 'preview-placeholder';
+    placeholder.textContent = `PDF loaded: ${file.name} (${(file.size / 1024).toFixed(1)} KB)`;
+    container.appendChild(placeholder);
+    return;
+  }
   const reader = new FileReader();
   reader.onload = (e) => {
     const img = document.createElement('img');
     img.src = e.target?.result as string;
-    container.innerHTML = '';
     container.appendChild(img);
   };
   reader.readAsDataURL(file);
@@ -50,7 +69,8 @@ imageInput.addEventListener('change', (e) => {
   if (file) {
     updatePreview(file, watermarkPreview);
     watermarkBtn.disabled = false;
-    watermarkStatus.textContent = `Loaded: ${file.name} (${(file.size / 1024).toFixed(1)} KB)`;
+    const typeLabel = isPdfFile(file) ? 'PDF' : 'Image';
+    watermarkStatus.textContent = `Loaded (${typeLabel}): ${file.name} (${(file.size / 1024).toFixed(1)} KB)`;
   }
 });
 
@@ -80,11 +100,18 @@ watermarkBtn.addEventListener('click', async () => {
     });
     watermarkedBlob = result.blob;
 
-    const url = URL.createObjectURL(result.blob);
-    const img = document.createElement('img');
-    img.src = url;
     watermarkPreview.innerHTML = '';
-    watermarkPreview.appendChild(img);
+    if (result.mimeType === 'application/pdf') {
+      const placeholder = document.createElement('div');
+      placeholder.className = 'preview-placeholder';
+      placeholder.textContent = `PDF watermarked. Size: ${(result.blob.size / 1024).toFixed(1)} KB. Use Download to save.`;
+      watermarkPreview.appendChild(placeholder);
+    } else {
+      const url = URL.createObjectURL(result.blob);
+      const img = document.createElement('img');
+      img.src = url;
+      watermarkPreview.appendChild(img);
+    }
 
     downloadBtn.disabled = false;
     watermarkStatus.textContent = `Watermarked! Size: ${(result.blob.size / 1024).toFixed(1)} KB, Format: ${result.mimeType}`;
@@ -98,10 +125,11 @@ watermarkBtn.addEventListener('click', async () => {
 downloadBtn.addEventListener('click', () => {
   if (!watermarkedBlob) return;
 
+  const ext = extensionFromMime(watermarkedBlob.type);
   const url = URL.createObjectURL(watermarkedBlob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `watermarked-${Date.now()}.${watermarkedBlob.type.split('/')[1]}`;
+  a.download = `watermarked-${Date.now()}.${ext}`;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
@@ -113,7 +141,8 @@ verifyImageInput.addEventListener('change', (e) => {
   if (file) {
     updatePreview(file, verifyPreview);
     verifyBtn.disabled = false;
-    verifyStatus.textContent = `Loaded: ${file.name}`;
+    const typeLabel = isPdfFile(file) ? 'PDF' : 'Image';
+    verifyStatus.textContent = `Loaded (${typeLabel}): ${file.name}`;
   }
 });
 

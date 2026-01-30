@@ -138,6 +138,15 @@
       border-radius: 4px;
     }
 
+    .preview-placeholder {
+      padding: 2rem;
+      background: #e9ecef;
+      border: 1px dashed #adb5bd;
+      border-radius: 4px;
+      color: #495057;
+      font-size: 0.95rem;
+    }
+
     .result {
       margin-top: 1rem;
       padding: 1rem;
@@ -194,8 +203,8 @@
     <div class="panel">
       <h2>Watermark</h2>
       <div class="form-group">
-        <label for="imageInput">Select Image:</label>
-        <input type="file" id="imageInput" accept="image/*">
+        <label for="imageInput">Select Image or PDF:</label>
+        <input type="file" id="imageInput" accept="image/*,application/pdf">
       </div>
       <div class="form-group">
         <label for="payloadInput">Payload:</label>
@@ -231,7 +240,7 @@
           </div>
         </div>
       </div>
-      <button id="watermarkBtn" disabled>Watermark Image</button>
+      <button id="watermarkBtn" disabled>Watermark</button>
       <button id="downloadBtn" disabled>Download Watermarked</button>
       <div class="preview" id="watermarkPreview"></div>
       <div class="status" id="watermarkStatus"></div>
@@ -240,8 +249,8 @@
     <div class="panel">
       <h2>Verify</h2>
       <div class="form-group">
-        <label for="verifyImageInput">Select Image to Verify:</label>
-        <input type="file" id="verifyImageInput" accept="image/*">
+        <label for="verifyImageInput">Select Image or PDF to Verify:</label>
+        <input type="file" id="verifyImageInput" accept="image/*,application/pdf">
       </div>
       <div class="form-group">
         <label for="verifyPayloadInput">Expected Payload:</label>

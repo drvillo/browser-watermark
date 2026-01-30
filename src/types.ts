@@ -87,36 +87,14 @@ export type VisibleWatermarkOptions = {
  */
 export type PdfOptions = {
   /**
-   * Page selection for PDF processing.
-   * - 'all': Process all pages (default)
-   * - 'first': Process only the first page
-   * - number[]: Process specific 0-based page indices
-   * - { from: number; to: number }: Process a range of pages (inclusive)
+   * Page selection for visible watermark placement (not used for invisible watermark).
+   * - 'all': Apply visible watermark to all pages (default)
+   * - 'first': Apply visible watermark only to the first page
+   * - number[]: Apply visible watermark to specific 0-based page indices
+   * - { from: number; to: number }: Apply visible watermark to a range of pages (inclusive)
    * @default 'all'
    */
   pageSelection?: PageSelection;
-
-  /**
-   * Render scale for PDF pages (multiplier of base 72 DPI).
-   * Higher values produce better quality but use more memory.
-   * @default 2.0
-   */
-  renderScale?: number;
-
-  /**
-   * Maximum pixel budget per page to prevent excessive memory usage.
-   * Pages exceeding this limit will be scaled down automatically.
-   * @default 16000000 (16M pixels)
-   */
-  maxPixels?: number;
-
-  /**
-   * Output format for watermark() when input is PDF.
-   * - 'pdf': Return a PDF Blob (default for PDF inputs)
-   * - 'images': Return an array of page results
-   * @default 'pdf'
-   */
-  output?: 'pdf' | 'images';
 };
 
 /**
@@ -175,10 +153,6 @@ export type WatermarkResult = {
    * PDF-specific metadata (only present when input was a PDF).
    */
   pageCount?: number;
-  /**
-   * Per-page metadata (only present when input was a PDF).
-   */
-  pages?: Array<{ index: number; width: number; height: number }>;
 };
 
 export type VerifyResult = {
@@ -189,10 +163,7 @@ export type VerifyResult = {
     likelyResized?: boolean;
     likelyRecompressed?: boolean;
   };
-  /**
-   * Per-page verification results (only present when input was a PDF).
-   */
-  pageMatches?: Array<{ index: number; confidence: number; isMatch: boolean }>;
+  error?: string;
 };
 
 export type ExtractResult = {

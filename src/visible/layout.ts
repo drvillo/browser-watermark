@@ -84,6 +84,16 @@ export function computeLayoutConfig(
 }
 
 /**
+ * Coordinate-system-agnostic position anchor.
+ */
+export type PositionAnchor = {
+  xAnchor: 'left' | 'center' | 'right';
+  yAnchor: 'top' | 'bottom';
+  xOffset: number;
+  yOffset: number;
+};
+
+/**
  * Result of text positioning calculation.
  */
 export type TextPosition = {
@@ -92,6 +102,31 @@ export type TextPosition = {
   textAlign: CanvasTextAlign;
   textBaseline: CanvasTextBaseline;
 };
+
+/**
+ * Calculate coordinate-system-agnostic position anchor.
+ * Can be converted to canvas or PDF coordinates.
+ */
+export function computePositionAnchor(
+  _width: number,
+  _height: number,
+  config: LayoutConfig
+): PositionAnchor {
+  const { marginX, marginY, position } = config;
+  switch (position) {
+    case 'top-left':
+      return { xAnchor: 'left', yAnchor: 'top', xOffset: marginX, yOffset: marginY };
+    case 'top-right':
+      return { xAnchor: 'right', yAnchor: 'top', xOffset: marginX, yOffset: marginY };
+    case 'bottom-left':
+      return { xAnchor: 'left', yAnchor: 'bottom', xOffset: marginX, yOffset: marginY };
+    case 'bottom-center':
+      return { xAnchor: 'center', yAnchor: 'bottom', xOffset: 0, yOffset: marginY };
+    case 'bottom-right':
+    default:
+      return { xAnchor: 'right', yAnchor: 'bottom', xOffset: marginX, yOffset: marginY };
+  }
+}
 
 /**
  * Calculate the anchor position for text based on the selected position.

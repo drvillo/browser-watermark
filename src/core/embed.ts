@@ -2,14 +2,12 @@ import { dct2d, idct2d } from './dct';
 import { SeededPRNG } from './prng';
 import { encodeWithRepetition } from './ecc';
 import { createBlockAssignments } from './block-selection';
-import { BLOCK_SIZE, PAYLOAD_BITS } from './constants';
+import { BLOCK_SIZE, PAYLOAD_BITS, EMBEDDING_STRENGTH } from './constants';
 
 const MID_FREQ_COEFFS: Array<[number, number]> = [
   [1, 2], [2, 1], [2, 2], [3, 1], [1, 3], [3, 2], [2, 3], [3, 3],
   [4, 1], [1, 4], [4, 2], [2, 4], [4, 3], [3, 4], [4, 4],
 ];
-
-const EMBEDDING_STRENGTH = 8.0;
 
 function extractLuminance(rgba: Uint8ClampedArray, width: number, height: number): Float32Array {
   const y = new Float32Array(width * height);
@@ -139,5 +137,8 @@ export function embedWatermark(
   }
 
   const watermarkedRgba = reconstructRGB(processedY, data, width, height);
-  return new ImageData(watermarkedRgba, width, height);
+  // Ensure ArrayBuffer-backed Uint8ClampedArray for ImageData compatibility
+  const clampedArray = new Uint8ClampedArray(watermarkedRgba.length);
+  clampedArray.set(watermarkedRgba);
+  return new ImageData(clampedArray, width, height);
 }

@@ -2,16 +2,17 @@ import { decodeImage } from './io/decode';
 import { encodeImage, detectMimeType } from './io/encode';
 import {
   isPdfInput,
-  renderPdfPages,
-  createPdfFromImages,
   inputToUint8Array,
-  resolvePageSelection,
-  type PageSelection,
+  createCarrierImage,
+  encodeImageDataToPng,
+  decodePngToImageData,
+  extractCarrierFromPdf,
 } from './io/pdf';
 import { embedWatermark } from './core/embed';
 import { extractWatermark } from './core/extract';
 import { derivePayloadDigest, digestToBits } from './utils/hash';
 import { renderVisibleWatermark } from './visible/render';
+import { applyVisibleWatermarkToPdf } from './visible/pdf-render';
 import {
   MATCH_THRESHOLD,
   PAYLOAD_BITS,
@@ -28,8 +29,6 @@ import type {
   VisibleWatermarkPosition,
 } from './types';
 
-const DEFAULT_RENDER_SCALE = 2.0;
-const DEFAULT_MAX_PIXELS = 16_000_000;
 
 // Re-export types for library consumers
 export type {
@@ -119,106 +118,50 @@ async function watermarkPdf(
   payload: string,
   options?: WatermarkOptions
 ): Promise<WatermarkResult> {
-  const pdfBytes = await inputToUint8Array(image);
+  const { PDFDocument } = await import('pdf-lib');
+  const inputBytes = await inputToUint8Array(image);
   
-  // Get PDF options with defaults
-  const pdfOptions = options?.pdf;
-  const pageSelection: PageSelection = pdfOptions?.pageSelection ?? 'all';
-  const renderScale = pdfOptions?.renderScale ?? DEFAULT_RENDER_SCALE;
-  const maxPixels = pdfOptions?.maxPixels ?? DEFAULT_MAX_PIXELS;
-  const outputFormat = pdfOptions?.output ?? 'pdf';
-
-  // Get total page count first (need to load PDF for this)
-  const pdfjsLib = await import('pdfjs-dist');
-  if (typeof window !== 'undefined' && !pdfjsLib.GlobalWorkerOptions.workerSrc) {
-    pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`;
-  }
-  // Ensure we have a copy of the buffer to avoid detachment issues
-  const bufferCopy = pdfBytes.buffer instanceof ArrayBuffer
-    ? pdfBytes.buffer.slice(0)
-    : new ArrayBuffer(pdfBytes.length);
-  if (!(pdfBytes.buffer instanceof ArrayBuffer)) {
-    new Uint8Array(bufferCopy).set(pdfBytes);
-  }
-  const pdfBytesCopy = new Uint8Array(bufferCopy);
+  // Load the original PDF
+  const pdfDoc = await PDFDocument.load(inputBytes);
   
-  const loadingTask = pdfjsLib.getDocument({ data: pdfBytesCopy });
-  const pdf = await loadingTask.promise;
-  const totalPages = pdf.numPages;
-
-  // Resolve page selection
-  const pageIndices = resolvePageSelection(pageSelection, totalPages);
-  if (pageIndices.length === 0) {
-    throw new Error('No valid pages selected for watermarking');
-  }
-
-  // Render PDF pages
-  const renderedPages = await renderPdfPages(pdfBytes, pageIndices, renderScale, maxPixels);
-
-  // Prepare payload bits
+  // Create and watermark the carrier image
   const digest = await derivePayloadDigest(payload);
   const payloadBits = digestToBits(digest, PAYLOAD_BITS);
-
-  // Watermark each page
-  const watermarkedPages = renderedPages.map(({ imageData, index, width, height }) => {
-    let watermarkedData = embedWatermark(imageData, payloadBits);
-
-    // Apply visible watermark if enabled
-    if (options?.visible?.enabled) {
-      const visibleResult = renderVisibleWatermark(watermarkedData, payload, options.visible);
-      watermarkedData = visibleResult.imageData;
-    }
-
-    return {
-      imageData: watermarkedData,
-      index,
-      width,
-      height,
-    };
+  const carrierImage = createCarrierImage();
+  const watermarkedCarrier = embedWatermark(carrierImage, payloadBits);
+  const carrierPngBytes = await encodeImageDataToPng(watermarkedCarrier);
+  
+  // Attach carrier as embedded file
+  await pdfDoc.attach(carrierPngBytes, 'watermark-carrier.png', {
+    mimeType: 'image/png',
+    description: 'Watermark verification carrier',
   });
-
-  // Build result
-  if (outputFormat === 'images') {
-    // Return first page as image (for now - PRD says array but we return single result)
-    // TODO: Consider returning array of results or zip
-    const firstPage = watermarkedPages[0];
-    const { blob, mimeType } = await encodeImage(
-      firstPage.imageData,
-      'image/png', // Use PNG for lossless encoding
-      undefined // Use default quality
-    );
-
-    return {
-      blob,
-      width: firstPage.width,
-      height: firstPage.height,
-      mimeType,
-      pageCount: totalPages,
-      pages: watermarkedPages.map((p) => ({ index: p.index, width: p.width, height: p.height })),
-    };
+  
+  // Apply visible watermark if enabled
+  if (options?.visible?.enabled) {
+    await applyVisibleWatermarkToPdf(pdfDoc, payload, options.visible);
   }
-
-  // Create PDF from watermarked pages
-  const outputPdfBytes = await createPdfFromImages(watermarkedPages);
+  
+  // Save and return
+  const outputBytes = await pdfDoc.save();
+  const pages = pdfDoc.getPages();
+  const firstPage = pages[0];
+  
   // Ensure ArrayBuffer-backed Uint8Array for Blob compatibility
-  const buffer = outputPdfBytes.buffer instanceof ArrayBuffer
-    ? outputPdfBytes.buffer
-    : new ArrayBuffer(outputPdfBytes.length);
-  if (!(outputPdfBytes.buffer instanceof ArrayBuffer)) {
-    new Uint8Array(buffer).set(outputPdfBytes);
+  const buffer = outputBytes.buffer instanceof ArrayBuffer
+    ? outputBytes.buffer
+    : new ArrayBuffer(outputBytes.length);
+  if (!(outputBytes.buffer instanceof ArrayBuffer)) {
+    new Uint8Array(buffer).set(outputBytes);
   }
-  const pdfBlob = new Blob([buffer], { type: 'application/pdf' });
-
-  // Use dimensions from first page for compatibility
-  const firstPage = watermarkedPages[0];
-
+  const outputPdfBytes = new Uint8Array(buffer);
+  
   return {
-    blob: pdfBlob,
-    width: firstPage.width,
-    height: firstPage.height,
+    blob: new Blob([outputPdfBytes], { type: 'application/pdf' }),
+    width: firstPage.getWidth(),
+    height: firstPage.getHeight(),
     mimeType: 'application/pdf',
-    pageCount: totalPages,
-    pages: watermarkedPages.map((p) => ({ index: p.index, width: p.width, height: p.height })),
+    pageCount: pages.length,
   };
 }
 
@@ -278,78 +221,38 @@ async function verifyPdf(
   options?: VerifyOptions
 ): Promise<VerifyResult> {
   const threshold = options?.threshold ?? MATCH_THRESHOLD;
-  const pdfBytes = await inputToUint8Array(image);
-
-  // Get PDF options with defaults
-  const pdfOptions = options?.pdf;
-  const pageSelection: PageSelection = pdfOptions?.pageSelection ?? 'all';
-  const renderScale = pdfOptions?.renderScale ?? DEFAULT_RENDER_SCALE;
-  const maxPixels = pdfOptions?.maxPixels ?? DEFAULT_MAX_PIXELS;
-
-  // Get total page count first
-  const pdfjsLib = await import('pdfjs-dist');
-  if (typeof window !== 'undefined' && !pdfjsLib.GlobalWorkerOptions.workerSrc) {
-    pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`;
-  }
-  // Ensure we have a copy of the buffer to avoid detachment issues
-  const bufferCopy = pdfBytes.buffer instanceof ArrayBuffer
-    ? pdfBytes.buffer.slice(0)
-    : new ArrayBuffer(pdfBytes.length);
-  if (!(pdfBytes.buffer instanceof ArrayBuffer)) {
-    new Uint8Array(bufferCopy).set(pdfBytes);
-  }
-  const pdfBytesCopy = new Uint8Array(bufferCopy);
+  const inputBytes = await inputToUint8Array(image);
   
-  const loadingTask = pdfjsLib.getDocument({ data: pdfBytesCopy });
-  const pdf = await loadingTask.promise;
-  const totalPages = pdf.numPages;
-
-  // Resolve page selection
-  const pageIndices = resolvePageSelection(pageSelection, totalPages);
-  if (pageIndices.length === 0) {
-    throw new Error('No valid pages selected for verification');
+  // Extract the carrier image
+  const carrierPngBytes = await extractCarrierFromPdf(inputBytes);
+  if (!carrierPngBytes) {
+    return { isMatch: false, confidence: 0, error: 'No watermark carrier found' };
   }
-
-  // Render PDF pages
-  const renderedPages = await renderPdfPages(pdfBytes, pageIndices, renderScale, maxPixels);
-
-  // Prepare expected bits
+  
+  // Decode and verify
+  const carrierImageData = await decodePngToImageData(carrierPngBytes);
   const expectedDigest = await derivePayloadDigest(payload);
   const expectedBits = digestToBits(expectedDigest, PAYLOAD_BITS);
-
-  // Verify each page
-  const pageMatches = renderedPages.map(({ imageData, index }) => {
-    const { recoveredBits, confidence } = extractWatermark(imageData, expectedBits);
-
-    const recoveredDigest = new Uint8Array(Math.ceil(PAYLOAD_BITS / 8));
-    for (let i = 0; i < PAYLOAD_BITS; i++) {
-      const byteIndex = Math.floor(i / 8);
-      const bitIndex = 7 - (i % 8);
-      if (recoveredBits[i]) {
-        recoveredDigest[byteIndex] |= 1 << bitIndex;
-      }
+  
+  const { recoveredBits, confidence } = extractWatermark(carrierImageData, expectedBits);
+  
+  const recoveredDigest = new Uint8Array(Math.ceil(PAYLOAD_BITS / 8));
+  for (let i = 0; i < PAYLOAD_BITS; i++) {
+    const byteIndex = Math.floor(i / 8);
+    const bitIndex = 7 - (i % 8);
+    if (recoveredBits[i]) {
+      recoveredDigest[byteIndex] |= 1 << bitIndex;
     }
-
-    const expectedDigestPrefix = expectedDigest.slice(0, Math.ceil(PAYLOAD_BITS / 8));
-    const expectedDigestHex = arrayBufferToHex(expectedDigestPrefix);
-    const recoveredDigestHex = arrayBufferToHex(recoveredDigest);
-
-    const isMatch = confidence >= threshold && expectedDigestHex === recoveredDigestHex;
-
-    return {
-      index,
-      confidence,
-      isMatch,
-    };
-  });
-
-  // Aggregate results: any-match with max confidence
-  const maxConfidence = Math.max(...pageMatches.map((p) => p.confidence));
-  const anyMatch = pageMatches.some((p) => p.isMatch);
-
+  }
+  
+  const expectedDigestPrefix = expectedDigest.slice(0, Math.ceil(PAYLOAD_BITS / 8));
+  const expectedDigestHex = arrayBufferToHex(expectedDigestPrefix);
+  const recoveredDigestHex = arrayBufferToHex(recoveredDigest);
+  
+  const isMatch = confidence >= threshold && expectedDigestHex === recoveredDigestHex;
+  
   return {
-    isMatch: anyMatch,
-    confidence: maxConfidence,
-    pageMatches,
+    isMatch,
+    confidence,
   };
 }

@@ -37,11 +37,8 @@ describe('PDF Watermarking', () => {
     expect(result.blob).toBeInstanceOf(Blob);
     expect(result.mimeType).toBe('application/pdf');
     expect(result.pageCount).toBe(1);
-    expect(result.pages).toBeDefined();
-    expect(result.pages?.length).toBe(1);
-    expect(result.pages?.[0].index).toBe(0);
-    expect(result.pages?.[0].width).toBeGreaterThan(0);
-    expect(result.pages?.[0].height).toBeGreaterThan(0);
+    expect(result.width).toBeGreaterThan(0);
+    expect(result.height).toBeGreaterThan(0);
   });
 
   it('should watermark a multi-page PDF', async () => {
@@ -52,74 +49,59 @@ describe('PDF Watermarking', () => {
     expect(result.blob).toBeInstanceOf(Blob);
     expect(result.mimeType).toBe('application/pdf');
     expect(result.pageCount).toBe(3);
-    expect(result.pages).toBeDefined();
-    expect(result.pages?.length).toBe(3);
-    expect(result.pages?.map((p) => p.index)).toEqual([0, 1, 2]);
   });
 
-  it('should handle page selection "first"', async () => {
+  it('should handle page selection "first" for visible watermark', async () => {
     const pdfBlob = await createTestPdf(3);
 
     const result = await watermark(pdfBlob, 'first-page-test', {
       pdf: { pageSelection: 'first' },
+      visible: { enabled: true },
     });
 
     expect(result.pageCount).toBe(3);
-    expect(result.pages?.length).toBe(1);
-    expect(result.pages?.[0].index).toBe(0);
   });
 
-  it('should handle page selection array', async () => {
+  it('should handle page selection array for visible watermark', async () => {
     const pdfBlob = await createTestPdf(5);
 
     const result = await watermark(pdfBlob, 'selective-pages-test', {
       pdf: { pageSelection: [0, 2, 4] },
+      visible: { enabled: true },
     });
 
     expect(result.pageCount).toBe(5);
-    expect(result.pages?.length).toBe(3);
-    expect(result.pages?.map((p) => p.index)).toEqual([0, 2, 4]);
   });
 
-  it('should handle page selection range', async () => {
+  it('should handle page selection range for visible watermark', async () => {
     const pdfBlob = await createTestPdf(5);
 
     const result = await watermark(pdfBlob, 'range-test', {
       pdf: { pageSelection: { from: 1, to: 3 } },
+      visible: { enabled: true },
     });
 
     expect(result.pageCount).toBe(5);
-    expect(result.pages?.length).toBe(3);
-    expect(result.pages?.map((p) => p.index)).toEqual([1, 2, 3]);
   });
 
   it('should verify a watermarked PDF', async () => {
-    const pdfBlob = await createTestPdf(2);
+    const pdfBlob = await createTestPdf(1);
 
     const watermarked = await watermark(pdfBlob, 'verify-test');
     const verification = await verify(watermarked.blob, 'verify-test');
 
     expect(verification.isMatch).toBe(true);
-    expect(verification.confidence).toBeGreaterThan(0.5);
-    expect(verification.pageMatches).toBeDefined();
-    expect(verification.pageMatches?.length).toBeGreaterThan(0);
-    // At least one page should match
-    expect(verification.pageMatches?.some((p) => p.isMatch)).toBe(true);
+    expect(verification.confidence).toBeGreaterThan(0.85);
   });
 
-  it('should verify a multi-page PDF with any-match logic', async () => {
+  it('should verify a multi-page PDF', async () => {
     const pdfBlob = await createTestPdf(3);
 
-    const watermarked = await watermark(pdfBlob, 'any-match-test');
-    const verification = await verify(watermarked.blob, 'any-match-test');
+    const watermarked = await watermark(pdfBlob, 'multi-page-verify-test');
+    const verification = await verify(watermarked.blob, 'multi-page-verify-test');
 
     expect(verification.isMatch).toBe(true);
-    expect(verification.pageMatches).toBeDefined();
-    // Confidence should be max of all page confidences
-    const maxPageConfidence = Math.max(
-      ...(verification.pageMatches?.map((p) => p.confidence) || [0])
-    );
-    expect(verification.confidence).toBe(maxPageConfidence);
+    expect(verification.confidence).toBeGreaterThan(0.85);
   });
 
   it('should reject wrong payload for PDF', async () => {
@@ -131,46 +113,23 @@ describe('PDF Watermarking', () => {
     expect(verification.isMatch).toBe(false);
   });
 
+  it('should fail verification for PDF without carrier', async () => {
+    const pdfBlob = await createTestPdf(1);
+    const verification = await verify(pdfBlob, 'any-payload');
+
+    expect(verification.isMatch).toBe(false);
+    expect(verification.confidence).toBe(0);
+    expect(verification.error).toBe('No watermark carrier found');
+  });
+
   it('should handle round-trip PDF watermarking', async () => {
-    const pdfBlob = await createTestPdf(2);
+    const pdfBlob = await createTestPdf(1);
 
     const watermarked = await watermark(pdfBlob, 'round-trip-pdf-test');
     const verification = await verify(watermarked.blob, 'round-trip-pdf-test');
 
     expect(verification.isMatch).toBe(true);
-    expect(verification.confidence).toBeGreaterThan(0.5);
+    expect(verification.confidence).toBeGreaterThan(0.85);
   });
 
-  it('should respect render scale option', async () => {
-    const pdfBlob = await createTestPdf(1);
-
-    const result1 = await watermark(pdfBlob, 'scale-test', {
-      pdf: { renderScale: 1.0 },
-    });
-    const result2 = await watermark(pdfBlob, 'scale-test', {
-      pdf: { renderScale: 2.0 },
-    });
-
-    // Higher scale should produce larger dimensions
-    expect(result2.pages?.[0].width).toBeGreaterThan(result1.pages?.[0].width);
-    expect(result2.pages?.[0].height).toBeGreaterThan(result1.pages?.[0].height);
-  });
-
-  it('should handle maxPixels constraint', async () => {
-    const pdfBlob = await createTestPdf(1);
-
-    // This should not throw even with a very low maxPixels
-    const result = await watermark(pdfBlob, 'max-pixels-test', {
-      pdf: { maxPixels: 10000, renderScale: 10.0 },
-    });
-
-    expect(result.blob).toBeInstanceOf(Blob);
-    expect(result.pages?.[0].width).toBeGreaterThan(0);
-    expect(result.pages?.[0].height).toBeGreaterThan(0);
-    // Dimensions should be constrained (accounting for minimum scale of 0.1)
-    const pixels = (result.pages?.[0].width || 0) * (result.pages?.[0].height || 0);
-    // With min scale 0.1, we can't get below ~5000 pixels for a standard page
-    // So we check that it's less than the requested scale would produce
-    expect(pixels).toBeLessThan(612 * 10 * 792 * 10); // Less than unscaled
-  });
 });
